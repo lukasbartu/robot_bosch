@@ -63,7 +63,7 @@ def rose_st(c, x0, y0, z0, f_x, f_y, cond, repeats, tl,N):
     points[:, 0] = points[:, 0] + x0
     points[:, 1] = points[:, 1] + y0
 
-    sol = points2irc(c, points)
+    sol, sign = points2irc(c, points)
     # print lengths
 
     return sol, points, lengths
@@ -73,12 +73,12 @@ def points2irc(c, points):
     sol = np.empty((1, 4))
     for p in points:
         # print( cy + np.cos(a)*r, cz + np.sin(a)*r)
-        prev_a = c.find_closest_ikt(p, prev_a)
+        prev_a, conf = c.find_closest_ikt(p, prev_a)
         if prev_a is None:
             return None, None
         sol = np.append(sol, [prev_a], axis=0)
     sol = np.delete(sol, 0, 0)
-    return sol
+    return sol, np.sign(conf)
 
 
 def showBoschRose(c):
@@ -193,7 +193,7 @@ def showBoschRose(c):
 
 
 # part to file and bottom left corner
-def draw_svg(path, blc, scale = 1.0, angle=0):
+def draw_svg(path, blc, scale = 1.0, angle=0,italic=0):
     paths, attributes = svg2paths(path)
     xs, ys, lengths = [], [], []
     for path in paths:
@@ -205,7 +205,7 @@ def draw_svg(path, blc, scale = 1.0, angle=0):
         for t in ts:
             les.append(path.length(prev_t, t))
             point = path.point(t)
-            x.append(np.real(point))
+            x.append(np.real(point)-np.imag(point)*italic*0.2)
             y.append(np.imag(point))  # 1052.36220 - height of A4 page
             prev_t = t
         temp = np.array([x,y])
@@ -218,6 +218,14 @@ def draw_svg(path, blc, scale = 1.0, angle=0):
 
         x = np.array(x) * scale + blc[0]
         y = np.array(y) * scale + blc[1]
+
+        temp = np.hstack(
+            (-x[np.newaxis].T, y[np.newaxis].T, 325 * np.ones(len(x))[np.newaxis].T, np.zeros(len(x))[np.newaxis].T))
+        #
+        temp_2, sign = points2irc(c, temp)
+        if sign >0:
+            y -= 19
+            x -= 5
         les = np.array(les) * scale
         xs.append(x)
         ys.append(y)
@@ -233,8 +241,8 @@ def draw_svg(path, blc, scale = 1.0, angle=0):
     for x, y, l in zip(xs, ys, lengths):
         points = np.hstack(
             (-x[np.newaxis].T, y[np.newaxis].T, 325 * np.ones(len(x))[np.newaxis].T, np.zeros(len(x))[np.newaxis].T))
-        points2irc(c, points)
-        sol = points2irc(c, points)
+        #
+        sol, sign = points2irc(c, points)
         params = poly.interpolate(sol)
         params_list.append(params)
         plt.plot(points[:, 0], points[:, 1])
@@ -254,18 +262,56 @@ def draw_svg(path, blc, scale = 1.0, angle=0):
         c.wait_ready(sync=True)
         c.move_to_pos([end[0], end[1], end[2] + 8000, end[3]])
 
+def draw_word():
+    word = None
+    print("GIVE US STARTING X-COORD:",end="")
+    coord_x = int(input())
+    print("GIVE US STARTING Y-COORD:",end="")
+    coord_y = int(input())
+    while(word == None):
+        print("WHAT DO YOU WANNA WRITE:",end="")
+        word = str(input())
+        for letter in word:
+            if letter not in ['L','E','F','T','Y','U','I','S','G','H','J','K','Z','X','C','V','N','M',' ','W']:
+                print("SORRY WE CANT WRITE",letter, "TRY AGAIN")
+                word = None
+    print("WHAT SCALE DO YOU WANNA USE (Default=1):",end="")
+    scale = float(input())
+    print("AT WHAT ANGLE SHOULD WE WRITE [degrees]:",end="")
+    angle = int(input()) / 180 * np.pi
+    print("DO YOU WANT TO WRITE IN ITALIC (YES=1 | NO=0):",end="")
+    italic = int(input())
+    for letter in word:
+        if letter is not ' ':
+            path = letter+'.svg'
+            svg_path,temp = svg2paths(path)
+            [best_min, best_max] = [None, None]
+            for p in svg_path:
+                xmin, xmax, ymin, ymax = p.bbox()
+                if best_max == None or best_max < xmax:
+                    best_max = xmax
+                if best_min == None or best_min < xmin:
+                    best_min = xmin
+            width = (best_max-best_min)+5
+            draw_svg(path,[coord_x,coord_y],scale,angle,italic)
+        else:
+            width = 50
+        coord_x += width*np.cos(angle)*scale
+        coord_y += width*np.sin(angle)*scale
+        
+
+# font = Inder
 if __name__ == '__main__':
     robot = robotBosch()
     # delattr(robot, "gripper_init")
     c = Commander(robot)
     c.open_comm('/dev/ttyUSB0', speed=19200)
     c.init()
-    #c.move_to_pos([-300, 220, 20, 0])
-    draw_svg('B.svg', [300, 80], 0.5)
-    #draw_svg('B.svg', [220, 100], 0.5, np.pi/4)
-    #draw_svg('S.svg', [-30, 250], 0.5)
-    #draw_svg('C.svg', [10, 250], 0.5)
-    #draw_svg('H.svg', [50, 250], 0.5)
+    cont = 1
+    while(cont == 1):
+        draw_word()
+        print("DO YOU WANT TO WRITE SOMETHING? (YES=1 | NO=0):")
+        cont = int(input())
     #showBoschRose(c)
     #c.rcon.write('PURGE:\n')
 

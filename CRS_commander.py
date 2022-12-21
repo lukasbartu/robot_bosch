@@ -487,7 +487,7 @@ class Commander:
             raise ValueError("Position is unreachable!")
         irc = self.anglestoirc(a[num])
 
-        return irc
+        return irc, a[num][1]
 
     def move_to_pos(self, irc, relative=False):
         """
