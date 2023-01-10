@@ -50,3 +50,17 @@ def param_correction(start, params, order):
         oldpos = pos.copy()
         params[i] = np.reshape(np.round(param.T), [len(start)*order], order='C')
     return params
+
+
+def points2irc(c, points):
+    prev_a = None
+    sol = np.empty((1, 4))
+    for p in points:
+        # print( cy + np.cos(a)*r, cz + np.sin(a)*r)
+        prev_a, conf = c.find_closest_ikt(p, prev_a)
+        if prev_a is None:
+            return None, None
+        sol = np.append(sol, [prev_a], axis=0)
+    sol = np.delete(sol, 0, 0)
+    return sol, np.sign(conf)
+    
